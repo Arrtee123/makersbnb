@@ -28,12 +28,10 @@ Session(app)
 def get_index():
     return render_template('index.html')
 
-@app.route('/login', methods=['GET'])
-def get_login():
-    return render_template('login.html')
-
-@app.route('/login', methods=['POST'])
+@app.route('/login', methods=['POST', 'GET'])
 def validate_login():
+    if request.method == 'GET':
+        return render_template('login.html')
     connection = get_flask_database_connection(app)
     repo = UserRepository(connection)
     name = request.form['name']
@@ -90,12 +88,12 @@ def get_spaces():
     return render_template("spaces.html", spaces=spaces)
     session['user_id'] = id
 
-@app.route('/spaces/new', methods=['GET'])
-def get_spaces_new():
-    return render_template("new_space.html")
 
-@app.route('/spaces/new', methods=['POST'])
+
+@app.route('/spaces/new', methods=['POST', 'GET'])
 def create_space():
+    if request.method == 'GET':
+        return render_template("new_space.html")
     connection = get_flask_database_connection(app)
     space_repo = SpaceRepository(connection)
     avail_repo = AvailabilityRepository(connection)
