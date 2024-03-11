@@ -9,7 +9,6 @@ from lib.availability_repository import AvailabilityRepository
 from lib.booking_repository import BookingRepository
 from lib.user_booking_repository import UserBookingRepository
 from lib.user_booking import UserBooking
-
 from lib.database_connection import get_flask_database_connection
 
 # Create a new Flask app
@@ -33,67 +32,18 @@ def get_index():
 def get_login():
     return render_template('login.html')
 
-@app.route('/spaces', methods=['GET'])
-def get_spaces():
+@app.route('/login', methods=['POST'])
+def validate_login():
     connection = get_flask_database_connection(app)
-    repo = SpaceRepository(connection)
-    spaces = repo.all()
-    return render_template("spaces.html", spaces=spaces)
-    session['user_id'] = id
-
-@app.route('/user/<int:id>', methods=['GET', 'POST'])
-def get_single_user(id):
-        connection = get_flask_database_connection(app)
-        user_repository = UserRepository(connection)
-        space_repository = SpaceRepository(connection)
-        booking_repository = BookingRepository(connection)
-        user_booking_repository = UserBookingRepository(connection)
-
-        userrequests = user_booking_repository.find_user_requests(id)
-
-        if request.method == 'POST':  # Check for POST request (delete action)
-            space_id = request.form.get('space_id')
-            if space_id:  # Ensure space_id is present in form data
-                # try:
-                space_repository.delete(space_id)
-                #     flash("Space deleted successfully!", "success")
-                # except Exception as e:
-                #     flash(f"Error deleting space: {e}", "error")
-            booking_id = request.form.get('booking_id')
-            if booking_id:
-                booking_repository.accept_booking(booking_id)
-                
-        user = user_repository.user_details(id)
-        spaces = space_repository.find_user_spaces(id)
-        userbookings = user_booking_repository.find_user_bookings(id)
-        
-    
-       
-        session['user_id'] = id
-
-        return render_template('user_homepage.html', user=user, spaces=spaces, userrequests=userrequests, userbookings=userbookings)
-
-
-
-@app.route('/spaces/new', methods=['GET'])
-def get_spaces_new():
-    return render_template("new_space.html")
-
-@app.route('/spaces/new', methods=['POST'])
-def create_space():
-    connection = get_flask_database_connection(app)
-    space_repo = SpaceRepository(connection)
-    avail_repo = AvailabilityRepository(connection)
+    repo = UserRepository(connection)
     name = request.form['name']
-    price = request.form['price']
-    description = request.form['description']
-    user_id = request.form['user_id']
-    availability_from = request.form['availability_from']
-    availability_to = request.form['availability_to']
-    space_repo.create(name, price, description, user_id)
-    space = space_repo.all()[-1]
-    avail_repo.create(availability_from, availability_to, space.id)
-    return redirect("/spaces")
+    password = request.form['password']
+    user_id = repo.get_user_id(name)
+    if repo.find(name, password):
+        session['logged_in'] = True
+        session['name'] = name
+        return redirect("user/{}".format(user_id))
+    return render_template("login.html")
 
 @app.route('/sign_up', methods=['POST', 'GET'])
 def sign_up():
@@ -132,74 +82,87 @@ def sign_up():
 #         return render_template("sign_up.html")
 #     return render_template("spaces.html")
 
-@app.route('/login', methods=['POST'])
-def validate_login():
+@app.route('/spaces', methods=['GET'])
+def get_spaces():
     connection = get_flask_database_connection(app)
-    repo = UserRepository(connection)
-    name = request.form['name']
-    password = request.form['password']
-    user_id = repo.get_user_id(name)
-    if repo.find(name, password):
-        session['logged_in'] = True
-        session['name'] = name
-        return redirect("user/{}".format(user_id))
-    return render_template("login.html")
+    repo = SpaceRepository(connection)
+    spaces = repo.all()
+    return render_template("spaces.html", spaces=spaces)
+    session['user_id'] = id
 
-@app.route('/spaces/<id>', methods=['GET'])
-def get_space(id):
+@app.route('/spaces/new', methods=['GET'])
+def get_spaces_new():
+    return render_template("new_space.html")
+
+@app.route('/spaces/new', methods=['POST'])
+def create_space():
     connection = get_flask_database_connection(app)
     space_repo = SpaceRepository(connection)
-    space = space_repo.find(id)
     avail_repo = AvailabilityRepository(connection)
-    availabilities = avail_repo.find_space(id)
-    return render_template("space_show.html", space=space, availabilities=availabilities, space_id=id)
+    name = request.form['name']
+    price = request.form['price']
+    description = request.form['description']
+    user_id = request.form['user_id']
+    availability_from = request.form['availability_from']
+    availability_to = request.form['availability_to']
+    space_repo.create(name, price, description, user_id)
+    space = space_repo.all()[-1]
+    avail_repo.create(availability_from, availability_to, space.id)
+    return redirect("/spaces")
 
-@app.route('/spaces/<int:id>', methods=['POST'])
-def make_booking(id):
+@app.route('/spaces/<int:id>', methods=['GET', 'POST'])
+def get_individual_space(id):
     connection = get_flask_database_connection(app)
+    space_repo = SpaceRepository(connection)
+    avail_repo = AvailabilityRepository(connection)
     booking_repo = BookingRepository(connection)
+    if request.method == 'GET':
+        space = space_repo.find(id)
+        availabilities = avail_repo.find_space(id)
+        return render_template("space_show.html", space=space, availabilities=availabilities, space_id=id)
+
     booking_from = request.form['booking_from']
     booking_to = request.form['booking_to']
     bookers_id = request.form['bookers_id']
     booking_repo.create(booking_from, booking_to, bookers_id, id)
     return redirect("/spaces")
 
+@app.route('/user/<int:id>', methods=['GET', 'POST'])
+def get_single_user(id):
+        connection = get_flask_database_connection(app)
+        user_repository = UserRepository(connection)
+        space_repository = SpaceRepository(connection)
+        booking_repository = BookingRepository(connection)
+        user_booking_repository = UserBookingRepository(connection)
+
+        userrequests = user_booking_repository.find_user_requests(id)
+
+        if request.method == 'POST':  # Check for POST request (delete action)
+            space_id = request.form.get('space_id')
+            if space_id:  # Ensure space_id is present in form data
+                # try:
+                space_repository.delete(space_id)
+                #     flash("Space deleted successfully!", "success")
+                # except Exception as e:
+                #     flash(f"Error deleting space: {e}", "error")
+            booking_id = request.form.get('booking_id')
+            if booking_id:
+                booking_repository.accept_booking(booking_id)
+                
+        user = user_repository.user_details(id)
+        spaces = space_repository.find_user_spaces(id)
+        userbookings = user_booking_repository.find_user_bookings(id)
+        
+    
+       
+        session['user_id'] = id
+
+        return render_template('user_homepage.html', user=user, spaces=spaces, userrequests=userrequests, userbookings=userbookings)
+
 
 @app.route('/bookings', methods=['GET'])
 def get_bookings_new():
     return render_template("bookings.html")
-
-@app.route('/bookings', methods=['GET'])
-def include_dates():
-    connection = get_flask_database_connection(app)
-    cursor = connection.cursor()
-    repo = AvailabilityRepository(connection)
-    result = repo.find(1)
-    return render_template('bookings.html', min_date=result.availability_from.strftime('%Y-%m-%d'), max_date=result.availability_to.strftime('%Y-%m-%d'))
-
-
-# @app.route('/books', methods=['POST'])
-#     def create_book():
-#         # Set up the database connection and repository
-#         connection = get_flask_database_connection(app)
-#         repository = BookRepository(connection)
-
-#         # Get the fields from the request form
-#         title = request.form['title']
-#         author_name = request.form['author_name']
-
-#         # Create a book object
-#         book = Book(None, title, author_name)
-
-#         # Check for validity and if not valid, show the form again with errors
-#         if not book.is_valid():
-#             return render_template('books/new.html', book=book, errors=book.generate_errors()), 400
-
-#         # Save the book to the database
-#         book = repository.create(book)
-
-#         # Redirect to the book's show route to the user can see it
-#         return redirect(f"/books/{book.id}")
 
 
 # These lines start the server if you run this file directly
